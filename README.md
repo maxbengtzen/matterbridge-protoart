@@ -24,7 +24,7 @@ matterbridge --enable matterbridge-protoart
 Clone or copy the plugin to your Matterbridge plugins directory:
 
 ```bash
-git clone https://github.com/YOUR_USER/matterbridge-protoart.git /root/Matterbridge/matterbridge-protoart
+git clone https://github.com/maxbengtzen/matterbridge-protoart.git /root/Matterbridge/matterbridge-protoart
 matterbridge --add /root/Matterbridge/matterbridge-protoart
 matterbridge --enable /root/Matterbridge/matterbridge-protoart
 ```
@@ -58,13 +58,17 @@ The plugin polls each ProtoArt unit's HTTP API at `/control` and exposes the dat
 - Current temperature (`localTemperature`)
 - Target temperature (`occupiedHeatingSetpoint` / `occupiedCoolingSetpoint`)
 - System mode (off, cool, heat, auto, fan, dry)
-- Power source information
+- Power source with replaceable battery level (if wireless sensor detected)
 
 Changes made in Apple Home (or any Matter controller) are sent back to the ProtoArt unit in real-time via the same HTTP API.
 
 ## API Reference
 
 ProtoArt HTTP API: https://protoart.net/knowledgebase/me_cn105_ata_wifi_http_api_mqtt_topics/
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md).
 
 ## License
 

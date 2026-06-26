@@ -1,6 +1,5 @@
 import {
   bridgedNode,
-  powerSource,
   MatterbridgeDynamicPlatform,
   MatterbridgeEndpoint,
   thermostat,
@@ -15,6 +14,8 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
   _devices = [];
   _interval;
   _lastApiValues = new Map();
+  _polling = false;
+  _pollTimer = null;
 
   constructor(matterbridge, log, config) {
     super(matterbridge, log, config);
@@ -66,7 +67,7 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
     const serial = `PA${host.replace(/[^0-9]/g, '').slice(-8)}`;
 
     const device = new MatterbridgeEndpoint(
-      [thermostat, bridgedNode, powerSource],
+      [thermostat, bridgedNode],
       { id },
       this.config.debug,
     )
@@ -79,7 +80,7 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
         'Heat Pump',
       )
       .createDefaultThermostatClusterServer(21, 19, 23)
-      .createDefaultPowerSourceWiredClusterServer()
+      .createDefaultPowerSourceReplaceableBatteryClusterServer(100)
       .addRequiredClusterServers();
 
     await this.registerDevice(device);
@@ -154,33 +155,38 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
 
   _handleModeChange(host, systemMode) {
     if (systemMode === 0) {
-      this._sendCommand(host, 'power', 'off');
+      this._sendCommand(host, { power: 'off' });
     } else {
-      this._sendCommand(host, 'power', 'on');
       const modeMap = { 1: 'auto', 3: 'cool', 4: 'heat', 7: 'fan', 8: 'dry' };
       const mode = modeMap[systemMode] || 'auto';
-      this._sendCommand(host, 'mode', mode);
+      this._sendCommand(host, { power: 'on', mode });
     }
   }
 
   async _pollAll() {
-    for (const { name, host, device } of this._devices) {
-      try {
-        const res = await fetch(`http://${host}/control`, {
-          signal: AbortSignal.timeout(4_000),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        this._updateState(device, data, name, host);
-      } catch (err) {
-        this.log.error(`${name}: Poll error ${err.message}`);
+    if (this._polling) return;
+    this._polling = true;
+    try {
+      for (const { name, host, device } of this._devices) {
+        try {
+          const res = await fetch(`http://${host}/control`, {
+            signal: AbortSignal.timeout(4_000),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          this._updateState(device, data, name, host);
+        } catch (err) {
+          this.log.error(`${name}: Poll error ${err.message}`);
+        }
       }
+    } finally {
+      this._polling = false;
     }
   }
 
   _updateState(device, data, name, host) {
     const hp = data?.heatpump ?? data ?? {};
-    const temperature = Number(hp.temperature ?? hp.temp ?? 21);
+    const temperature = Number(hp.actual_temperature ?? hp.temperature ?? hp.temp ?? 21);
     const setpoint = Number(hp.set_temperature ?? hp.setpoint ?? hp.target ?? 21);
     const power = hp.power ?? 'on';
     const mode = hp.mode ?? 'auto';
@@ -193,6 +199,13 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
       mode: systemMode,
       setpoint: Math.round(setpoint * 100),
     });
+
+    const battery = data?.sensor?.thermometer?.batt;
+    if (battery != null) {
+      device.updateAttribute(47, 'batPercentRemaining', battery * 2, this.log);
+    } else {
+      device.updateAttribute(47, 'batPercentRemaining', 200, this.log);
+    }
 
     device.updateAttribute(
       Thermostat.id,
@@ -217,19 +230,27 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
     device.updateAttribute(Thermostat.id, 'systemMode', systemMode, this.log);
   }
 
-  async _sendCommand(host, param, value) {
+  async _sendCommand(host, params, value) {
     try {
-      const url = `http://${host}/control?cmd=heatpump&${param}=${encodeURIComponent(value)}`;
+      if (typeof params === 'string') {
+        params = { [params]: value };
+      }
+      const qs = Object.entries(params)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&');
+      const url = `http://${host}/control?cmd=heatpump&${qs}`;
       const res = await fetch(url, { signal: AbortSignal.timeout(3_000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setTimeout(() => this._pollAll(), 1_500);
+      if (this._pollTimer) clearTimeout(this._pollTimer);
+      this._pollTimer = setTimeout(() => this._pollAll(), 1_500);
     } catch (err) {
-      this.log.error(`Command ${host} ${param}=${value}: ${err.message}`);
+      this.log.error(`Command ${host}: ${err.message}`);
     }
   }
 
   async onShutdown(reason) {
     if (this._interval) clearInterval(this._interval);
+    if (this._pollTimer) clearTimeout(this._pollTimer);
     this._devices.forEach(({ device }) => {
       this.unregisterDevice(device).catch(() => {});
     });

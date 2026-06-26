@@ -1,6 +1,6 @@
 {
   "name": "matterbridge-protoart",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Matterbridge plugin for ProtoArt ME_CN105_ATA_WIFI heat pumps",
   "author": "@maxbengtzen",
   "license": "MIT",
