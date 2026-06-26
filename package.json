@@ -1,0 +1,32 @@
+{
+  "name": "matterbridge-protoart",
+  "version": "0.1.0",
+  "description": "Matterbridge plugin for ProtoArt ME_CN105_ATA_WIFI heat pumps",
+  "author": "@maxbengtzen",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/module.js",
+  "exports": {
+    ".": {
+      "import": "./dist/module.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maxbengtzen/matterbridge-protoart.git"
+  },
+  "homepage": "https://github.com/maxbengtzen/matterbridge-protoart#readme",
+  "bugs": {
+    "url": "https://github.com/maxbengtzen/matterbridge-protoart/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "matterbridge",
+    "matter",
+    "protoart",
+    "heat-pump",
+    "thermostat"
+  ]
+}

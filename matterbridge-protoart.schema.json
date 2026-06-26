@@ -1,0 +1,59 @@
+{
+  "title": "ProtoArt Heat Pumps",
+  "description": "Matterbridge plugin for ProtoArt ME_CN105_ATA_WIFI heat pumps",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "version": {
+      "title": "Plugin Version",
+      "description": "Plugin version",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging for the plugin",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown (development only)",
+      "type": "boolean",
+      "default": false
+    },
+    "hosts": {
+      "title": "ProtoArt hosts (comma-separated)",
+      "description": "IP addresses of ProtoArt units, e.g. 192.168.0.151,192.168.0.152",
+      "type": "string",
+      "default": ""
+    },
+    "deviceNames": {
+      "title": "Device names (comma-separated, optional)",
+      "description": "e.g. Living Room,Hallway — matches host order",
+      "type": "string",
+      "default": ""
+    },
+    "pollInterval": {
+      "title": "Poll interval (ms)",
+      "description": "How often devices are polled (minimum 5000)",
+      "type": "number",
+      "default": 15000,
+      "minimum": 5000
+    }
+  }
+}
