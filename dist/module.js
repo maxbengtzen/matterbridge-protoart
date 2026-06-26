@@ -249,12 +249,15 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
   }
 
   async onShutdown(reason) {
+    this.log.info('ProtoArt plugin shutdown', reason);
     if (this._interval) clearInterval(this._interval);
     if (this._pollTimer) clearTimeout(this._pollTimer);
-    this._devices.forEach(({ device }) => {
-      this.unregisterDevice(device).catch(() => {});
-    });
+    if (this.config.unregisterOnShutdown === true) {
+      for (const { device } of this._devices) {
+        await this.unregisterDevice(device).catch(() => {});
+      }
+    }
     this._devices = [];
-    this.log.info('ProtoArt plugin shutdown');
+    await super.onShutdown(reason);
   }
 }
