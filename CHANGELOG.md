@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — 2026-06-29
+
+### Added
+- Serialised API request queue prevents concurrent fetch collisions between poll and commands
+- Exponential backoff on consecutive poll failures (doubles interval up to 2 min)
+- Optimistic state updates after commands (no post-command poll needed)
+- Cleaner error handling with timeout detection on HTTP requests
+
+### Fixed
+- Eliminated "No Response" by removing post-command poll that triggered Adax 30s rate limit
+- Poll cycle no longer crashes on single-device failure
+
 ## 0.2.1 — 2026-06-26
 
 ### Fixed
