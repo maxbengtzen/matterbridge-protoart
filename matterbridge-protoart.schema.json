@@ -36,21 +36,55 @@
       "type": "boolean",
       "default": false
     },
+    "devices": {
+      "title": "Heat pumps",
+      "description": "One entry per ProtoArt unit.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": [
+          "host"
+        ],
+        "properties": {
+          "host": {
+            "title": "Host / IP address",
+            "description": "e.g. 192.168.0.151 or heatpump.local",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "description": "Shown in Apple Home and other controllers. Defaults to \"Heat Pump N\".",
+            "type": "string"
+          },
+          "identity": {
+            "title": "Device identity",
+            "description": "\"ip\" (default) keeps the identity used by earlier versions. \"mac\" uses the unit's MAC address, so the device survives IP changes. Switching an existing device to \"mac\" makes controllers see it as a new device.",
+            "type": "string",
+            "enum": [
+              "ip",
+              "mac"
+            ],
+            "default": "ip"
+          }
+        }
+      }
+    },
     "hosts": {
-      "title": "ProtoArt hosts (comma-separated)",
-      "description": "IP addresses of ProtoArt units, e.g. 192.168.0.151,192.168.0.152",
+      "title": "ProtoArt hosts (legacy, comma-separated)",
+      "description": "Deprecated: use \"Heat pumps\" above. Only used when that list is empty. e.g. 192.168.0.151,192.168.0.152",
       "type": "string",
       "default": ""
     },
     "deviceNames": {
-      "title": "Device names (comma-separated, optional)",
-      "description": "e.g. Living Room,Hallway — matches host order",
+      "title": "Device names (legacy, comma-separated)",
+      "description": "Deprecated: use \"Heat pumps\" above. Matched to the legacy hosts by position.",
       "type": "string",
       "default": ""
     },
     "pollInterval": {
       "title": "Poll interval (ms)",
-      "description": "How often devices are polled (minimum 5000)",
+      "description": "How often each unit is polled (minimum 5000). Failing units are polled less often (exponential backoff, max 2 min).",
       "type": "number",
       "default": 15000,
       "minimum": 5000
