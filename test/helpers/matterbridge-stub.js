@@ -4,6 +4,7 @@
 
 export const bridgedNode = { name: 'bridgedNode' };
 export const thermostat = { name: 'thermostat' };
+export const humiditySensor = { name: 'humiditySensor' };
 
 export class MatterbridgeEndpoint {
   constructor(deviceTypes, options, debug) {
@@ -16,6 +17,7 @@ export class MatterbridgeEndpoint {
     this.commandHandlers = new Map();
     this.events = [];
     this.updates = [];
+    this.children = [];
     this.log = { info() {}, warn() {}, error() {}, debug() {} };
   }
 
@@ -27,7 +29,14 @@ export class MatterbridgeEndpoint {
   createDefaultBridgedDeviceBasicInformationClusterServer(...a) { return this.#record('basicInfo', a); }
   createDefaultThermostatClusterServer(...a) { return this.#record('thermostat', a); }
   createDefaultPowerSourceReplaceableBatteryClusterServer(...a) { return this.#record('battery', a); }
+  createDefaultRelativeHumidityMeasurementClusterServer(...a) { return this.#record('humidity', a); }
   addRequiredClusterServers() { return this; }
+
+  addChildDeviceType(name, deviceTypes) {
+    const child = new MatterbridgeEndpoint(deviceTypes, { id: name }, this.debug);
+    this.children.push(child);
+    return child;
+  }
 
   subscribeAttribute(cluster, attribute, listener) {
     const key = `${cluster}.${attribute}`;

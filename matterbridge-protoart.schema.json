@@ -36,6 +36,12 @@
       "type": "boolean",
       "default": false
     },
+    "humiditySensor": {
+      "title": "Humidity sensors",
+      "description": "Expose the humidity reading of each unit's wireless thermometer as a separate humidity sensor. Units without a paired thermometer show an unknown value.",
+      "type": "boolean",
+      "default": true
+    },
     "devices": {
       "title": "Heat pumps",
       "description": "One entry per ProtoArt unit.",

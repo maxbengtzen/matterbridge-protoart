@@ -142,6 +142,7 @@ export function parseControl(data) {
   const systemMode = power === 'off' ? SystemMode.Off : (API_MODE_TO_SYSTEM_MODE[mode] ?? SystemMode.Auto);
 
   const batt = toNumber(data?.sensor?.thermometer?.batt);
+  const humidity = toNumber(data?.sensor?.thermometer?.hact);
   const faultCode = typeof hp.fault_code === 'string' ? hp.fault_code : null;
 
   return {
@@ -152,6 +153,7 @@ export function parseControl(data) {
     setpoint: toNumber(hp.set_temperature),
     operating: typeof hp.oper === 'boolean' ? hp.oper : null,
     battery: batt === null ? null : Math.min(Math.max(batt, 0), 100),
+    humidity: humidity === null ? null : Math.min(Math.max(humidity, 0), 100),
     fault: faultCode && faultCode.toLowerCase() !== 'no error' ? faultCode : null,
     info: {
       mac: data?.wifi?.mac ?? null,
@@ -195,6 +197,11 @@ export function batteryAttributes(percent) {
     batChargeLevel: percent <= 10 ? 2 : percent <= 20 ? 1 : 0, // Critical / Warning / Ok
     batReplacementNeeded: percent <= 10,
   };
+}
+
+/** RelativeHumidityMeasurement.measuredValue is in 0.01 % steps; no thermometer / no reading -> unknown (null). */
+export function humidityValue(percent) {
+  return percent === null || percent === undefined ? null : Math.round(percent * 100);
 }
 
 // ---------------------------------------------------------------------------

@@ -7,12 +7,13 @@ const { ProtoArtMatterbridgePlatform } = await import('../dist/module.js');
 const THERMOSTAT = 513;
 const POWER_SOURCE = 47;
 const BRIDGED_BASIC_INFO = 57;
+const HUMIDITY = 1029;
 
-const control = (heatpump = {}, batt = 71) => ({
+const control = (heatpump = {}, batt = 71, hact = 57) => ({
   wifi: { mac: 'AA:BB:CC:00:11:22' },
   sys: { frname: 'Allrum' },
   heatpump: { power: 'on', mode: 'heat', set_temperature: 20, oper: true, fault_code: 'No error', actual_temperature: 22.5, ...heatpump },
-  sensor: batt === null ? {} : { thermometer: { batt } },
+  sensor: batt === null ? {} : { thermometer: { batt, hact } },
 });
 
 /** Fake ProtoArt units keyed by host. Commands are recorded; `down` makes a host fail. */
@@ -102,6 +103,33 @@ describe('ProtoArtMatterbridgePlatform', () => {
     assert.equal(get(THERMOSTAT, 'thermostatRunningMode'), 4);
     assert.equal(get(THERMOSTAT, 'thermostatRunningState').heat, true);
     assert.equal(get(POWER_SOURCE, 'batPercentRemaining'), 142);
+  });
+
+  it('exposes the thermometer humidity as a separate humidity sensor', async () => {
+    const device = await start({ devices: [{ host: '10.0.0.1' }] });
+    assert.equal(device.children.length, 1);
+    const [sensor] = device.children;
+    assert.equal(sensor.id, 'Humidity');
+    assert.equal(sensor.deviceTypes[0].name, 'humiditySensor');
+    assert.deepEqual(sensor.calls.humidity, [null, 0, 10000]);
+    assert.equal(sensor.getAttribute(HUMIDITY, 'measuredValue'), 5700);
+  });
+
+  it('reports unknown humidity when no thermometer is paired', async () => {
+    const device = await start({ devices: [{ host: '10.0.0.1' }] }, { '10.0.0.1': control({}, null) });
+    assert.equal(device.children[0].getAttribute(HUMIDITY, 'measuredValue') ?? null, null);
+  });
+
+  it('follows humidity changes on later polls', async () => {
+    const device = await start({ devices: [{ host: '10.0.0.1' }] });
+    net.units['10.0.0.1'] = control({}, 71, 61.5);
+    await tick(15_000);
+    assert.equal(device.children[0].getAttribute(HUMIDITY, 'measuredValue'), 6150);
+  });
+
+  it('creates no humidity sensor when humiditySensor is false', async () => {
+    const device = await start({ humiditySensor: false, devices: [{ host: '10.0.0.1' }] });
+    assert.equal(device.children.length, 0);
   });
 
   it('reports an unknown battery when no thermometer is paired', async () => {

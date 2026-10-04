@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1 — 2026-10-04
+
+### Added
+- **Humidity sensors**: the humidity reading (`hact`) of each unit's wireless thermometer is exposed as a separate Matter humidity sensor next to the thermostat, so it shows up as its own tile in Apple Home. Without a paired thermometer the value is unknown. Can be switched off with `humiditySensor: false` in the plugin config (default `true`).
+
+### Upgrade notes
+- After the upgrade, each heat pump gets one new humidity sensor in your controller. In Apple Home it may need to be assigned to a room. Existing devices, rooms and automations are unaffected.
+- To get no humidity sensors, set `humiditySensor` to `false` before upgrading.
+
 ## 0.4.0 — 2026-10-04
 
 Reliability release: fixes several bugs found in a code review, makes the plugin report what the heat pump is actually doing, and adds a test suite. Existing installations upgrade without changes to their config or their Apple Home setup.

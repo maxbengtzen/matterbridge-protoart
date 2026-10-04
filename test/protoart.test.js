@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   backoffDelay,
   batteryAttributes,
+  humidityValue,
   ipIdentity,
   isLocalContext,
   macIdentity,
@@ -111,6 +112,7 @@ describe('parseControl', () => {
     assert.equal(s.setpoint, 20);
     assert.equal(s.operating, true);
     assert.equal(s.battery, 71);
+    assert.equal(s.humidity, 57);
     assert.equal(s.fault, null);
     assert.equal(s.info.mac, 'AA:BB:CC:00:11:22');
   });
@@ -132,6 +134,7 @@ describe('parseControl', () => {
     assert.equal(s.setpoint, null);
     assert.equal(s.operating, null);
     assert.equal(s.battery, null);
+    assert.equal(s.humidity, null);
   });
 
   it('rejects responses without a heatpump section', () => {
@@ -172,6 +175,18 @@ describe('batteryAttributes', () => {
 
   it('reports unknown rather than a fake 100 % without a sensor', () => {
     assert.equal(batteryAttributes(null).batPercentRemaining, null);
+  });
+});
+
+describe('humidityValue', () => {
+  it('uses 0.01 % steps and unknown without a reading', () => {
+    assert.equal(humidityValue(57), 5700);
+    assert.equal(humidityValue(55.5), 5550);
+    assert.equal(humidityValue(null), null);
+  });
+
+  it('clamps readings to 0-100 %', () => {
+    assert.equal(parseControl(sample({}, { thermometer: { hact: 140 } })).humidity, 100);
   });
 });
 

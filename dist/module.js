@@ -1,13 +1,15 @@
 import {
   bridgedNode,
+  humiditySensor,
   MatterbridgeDynamicPlatform,
   MatterbridgeEndpoint,
   thermostat,
 } from 'matterbridge';
-import { BridgedDeviceBasicInformation, PowerSource, Thermostat } from 'matterbridge/matter/clusters';
+import { BridgedDeviceBasicInformation, PowerSource, RelativeHumidityMeasurement, Thermostat } from 'matterbridge/matter/clusters';
 import {
   backoffDelay,
   batteryAttributes,
+  humidityValue,
   ipIdentity,
   isLocalContext,
   macIdentity,
@@ -129,11 +131,21 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
       .createDefaultPowerSourceReplaceableBatteryClusterServer(null)
       .addRequiredClusterServers();
 
+    // Humidity reported by the unit's wireless thermometer, as a separate sensor tile in controllers.
+    const humidityDevice =
+      this.config.humiditySensor === false
+        ? null
+        : device
+            .addChildDeviceType('Humidity', [humiditySensor], {}, this.config.debug)
+            .createDefaultRelativeHumidityMeasurementClusterServer(null, 0, 10_000)
+            .addRequiredClusterServers();
+
     const entry = {
       name,
       host,
       client,
       device,
+      humidityDevice,
       state: null,
       errors: 0,
       reachable: true,
@@ -358,6 +370,15 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
 
     for (const [attribute, value] of Object.entries(batteryAttributes(state.battery))) {
       await device.updateAttribute(PowerSource.id, attribute, value, this.log);
+    }
+
+    if (entry.humidityDevice) {
+      await entry.humidityDevice.updateAttribute(
+        RelativeHumidityMeasurement.id,
+        'measuredValue',
+        humidityValue(state.humidity),
+        this.log,
+      );
     }
   }
 
