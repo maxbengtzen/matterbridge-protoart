@@ -13,6 +13,7 @@ import {
   ipIdentity,
   isLocalContext,
   macIdentity,
+  normalizeHumidityMode,
   normalizePollInterval,
   normalizeSetpoint,
   paramsForSystemMode,
@@ -43,6 +44,7 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
   _entries = [];
   _stopped = false;
   _pollInterval = 15_000;
+  _humidityMode = 'off';
 
   constructor(matterbridge, log, config) {
     super(matterbridge, log, config);
@@ -72,6 +74,11 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
     }
 
     this._pollInterval = normalizePollInterval(this.config.pollInterval);
+    this._humidityMode = normalizeHumidityMode(this.config.humidity);
+    if (this._humidityMode === null) {
+      this.log.warn(`Unknown humidity setting "${this.config.humidity}", humidity is disabled. Use "off", "thermostat" or "separate".`);
+      this._humidityMode = 'off';
+    }
 
     for (const cfg of devices) {
       try {
@@ -128,17 +135,22 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
       // Heat and cool setpoints are mirrored (the unit has a single target), so no dead band; limits match the unit.
       .createDefaultThermostatClusterServer(21, 21, 21, 0, SETPOINT_MIN, SETPOINT_MAX, SETPOINT_MIN, SETPOINT_MAX)
       // Battery of the unit's wireless thermometer; reports "unknown" until a reading arrives.
-      .createDefaultPowerSourceReplaceableBatteryClusterServer(null)
-      .addRequiredClusterServers();
+      .createDefaultPowerSourceReplaceableBatteryClusterServer(null);
 
-    // Humidity reported by the unit's wireless thermometer, as a separate sensor tile in controllers.
-    const humidityDevice =
-      this.config.humiditySensor === false
-        ? null
-        : device
-            .addChildDeviceType('Humidity', [humiditySensor], {}, this.config.debug)
-            .createDefaultRelativeHumidityMeasurementClusterServer(null, 0, 10_000)
-            .addRequiredClusterServers();
+    // Humidity from the unit's wireless thermometer (see the `humidity` setting).
+    //  - "thermostat": cluster on the thermostat endpoint itself (recommended)
+    //  - "separate":   child endpoint of type humiditySensor
+    let humidityDevice = null;
+    if (this._humidityMode === 'thermostat') {
+      device.createDefaultRelativeHumidityMeasurementClusterServer(null, 0, 10_000);
+      humidityDevice = device;
+    } else if (this._humidityMode === 'separate') {
+      humidityDevice = device
+        .addChildDeviceType('Humidity', [humiditySensor], {}, this.config.debug)
+        .createDefaultRelativeHumidityMeasurementClusterServer(null, 0, 10_000)
+        .addRequiredClusterServers();
+    }
+    device.addRequiredClusterServers();
 
     const entry = {
       name,

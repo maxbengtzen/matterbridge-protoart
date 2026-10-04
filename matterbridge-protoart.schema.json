@@ -36,11 +36,16 @@
       "type": "boolean",
       "default": false
     },
-    "humiditySensor": {
-      "title": "Humidity sensors",
-      "description": "Expose the humidity reading of each unit's wireless thermometer as a separate humidity sensor. Units without a paired thermometer show an unknown value.",
-      "type": "boolean",
-      "default": true
+    "humidity": {
+      "title": "Humidity (wireless thermometer)",
+      "description": "\"off\": not exposed (default). \"thermostat\" (recommended): humidity is added to the thermostat itself and shown in its detail view. \"separate\": a separate humidity sensor per unit; Apple Home may then show the unit primarily as a humidity sensor.",
+      "type": "string",
+      "enum": [
+        "off",
+        "thermostat",
+        "separate"
+      ],
+      "default": "off"
     },
     "devices": {
       "title": "Heat pumps",

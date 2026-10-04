@@ -199,6 +199,14 @@ export function batteryAttributes(percent) {
   };
 }
 
+export const HUMIDITY_MODES = ['off', 'thermostat', 'separate'];
+
+/** Config value -> humidity mode; undefined -> 'off', anything unknown -> null (caller warns and uses 'off'). */
+export function normalizeHumidityMode(value) {
+  if (value === undefined || value === null || value === '') return 'off';
+  return HUMIDITY_MODES.includes(value) ? value : null;
+}
+
 /** RelativeHumidityMeasurement.measuredValue is in 0.01 % steps; no thermometer / no reading -> unknown (null). */
 export function humidityValue(percent) {
   return percent === null || percent === undefined ? null : Math.round(percent * 100);

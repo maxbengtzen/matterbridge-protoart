@@ -1,9 +1,22 @@
 # Changelog
 
+## 0.4.2 — 2026-10-04
+
+### Changed
+- **Humidity is now off by default.** In 0.4.1 the humidity sensor was added as a separate endpoint, and Apple Home then showed the heat pump primarily as a humidity sensor instead of as a climate unit. The new `humidity` setting has three modes: `off` (default), `thermostat` (recommended) and `separate` (the 0.4.1 behaviour, with the drawback above).
+- The `humiditySensor` setting from 0.4.1 is replaced by `humidity` and is ignored.
+
+### Added
+- `humidity: "thermostat"` (recommended): the humidity reading is added to the thermostat endpoint itself instead of as a separate sensor. In Apple Home the unit stays a thermostat, and the humidity shows up in the detail view next to mode and temperature.
+
+### Upgrade notes
+- If you installed 0.4.1, the humidity sensors disappear after the upgrade (default `off`). Apple Home may keep showing the old tile until the Home app is restarted.
+- To get humidity again, set `humidity` to `thermostat` (recommended) or `separate`.
+
 ## 0.4.1 — 2026-10-04
 
 ### Added
-- **Humidity sensors**: the humidity reading (`hact`) of each unit's wireless thermometer is exposed as a separate Matter humidity sensor next to the thermostat, so it shows up as its own tile in Apple Home. Without a paired thermometer the value is unknown. Can be switched off with `humiditySensor: false` in the plugin config (default `true`).
+- **Humidity sensors** (superseded by the `humidity` setting in 0.4.2): the humidity reading (`hact`) of each unit's wireless thermometer is exposed as a separate Matter humidity sensor next to the thermostat, so it shows up as its own tile in Apple Home. Without a paired thermometer the value is unknown. Can be switched off with `humiditySensor: false` in the plugin config (default `true`).
 
 ### Upgrade notes
 - After the upgrade, each heat pump gets one new humidity sensor in your controller. In Apple Home it may need to be assigned to a room. Existing devices, rooms and automations are unaffected.

@@ -9,6 +9,7 @@ import {
   macIdentity,
   MAX_BACKOFF,
   normalizeHost,
+  normalizeHumidityMode,
   normalizePollInterval,
   normalizeSetpoint,
   paramsForSystemMode,
@@ -175,6 +176,17 @@ describe('batteryAttributes', () => {
 
   it('reports unknown rather than a fake 100 % without a sensor', () => {
     assert.equal(batteryAttributes(null).batPercentRemaining, null);
+  });
+});
+
+describe('normalizeHumidityMode', () => {
+  it('defaults to off and rejects unknown values', () => {
+    assert.equal(normalizeHumidityMode(undefined), 'off');
+    assert.equal(normalizeHumidityMode(''), 'off');
+    assert.equal(normalizeHumidityMode('thermostat'), 'thermostat');
+    assert.equal(normalizeHumidityMode('separate'), 'separate');
+    assert.equal(normalizeHumidityMode('both'), null);
+    assert.equal(normalizeHumidityMode(true), null);
   });
 });
 

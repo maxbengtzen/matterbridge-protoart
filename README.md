@@ -37,7 +37,7 @@ Configure via the Matterbridge frontend (`http://<host>:8283`) or by editing the
 |---|---|---|---|
 | `devices` | array | `[]` | One entry per unit: `host` (required), `name`, `identity` (`ip` or `mac`) |
 | `pollInterval` | number | `15000` | Polling interval per unit in milliseconds (minimum 5000) |
-| `humiditySensor` | boolean | `true` | Expose the wireless thermometer's humidity as a separate humidity sensor |
+| `humidity` | string | `off` | Humidity from the wireless thermometer: `off`, `thermostat` (recommended, added to the thermostat itself) or `separate` (separate humidity sensor; Apple Home may then show the unit primarily as a humidity sensor) |
 | `debug` | boolean | `false` | Verbose debug logging |
 | `unregisterOnShutdown` | boolean | `false` | Unregister devices when Matterbridge stops (development only; loses room assignments in Apple Home) |
 | `hosts`, `deviceNames` | string | (empty) | **Legacy**: comma-separated hosts and names, matched by position. Used only when `devices` is empty |
@@ -68,7 +68,7 @@ Each unit is polled at `/control` (every unit on its own schedule) and exposed a
 - System mode: off, auto, cool, heat, fan only, dry
 - Running state (heating / cooling), from the unit's `oper` flag
 - Battery level of the wireless thermometer (shown as unknown if none is paired)
-- Humidity from the wireless thermometer, as a separate humidity sensor (can be disabled with `humiditySensor`)
+- Optional: humidity from the wireless thermometer (`humidity` setting, off by default)
 - Reachability: after 3 failed polls in a row the device shows as unreachable until the unit answers again
 
 Changes made in Apple Home (or any Matter controller) are sent to the unit as `/control?cmd=heatpump&...` requests. Setpoint changes are debounced, and the unit is re-read a couple of seconds after every command to confirm the result. Requests to one unit are sent one at a time; a unit that stops answering is polled less often (exponential backoff up to 2 minutes) without affecting the others.
