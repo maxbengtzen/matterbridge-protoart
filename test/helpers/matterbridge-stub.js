@@ -30,6 +30,7 @@ export class MatterbridgeEndpoint {
   createDefaultThermostatClusterServer(...a) { return this.#record('thermostat', a); }
   createDefaultPowerSourceReplaceableBatteryClusterServer(...a) { return this.#record('battery', a); }
   createDefaultRelativeHumidityMeasurementClusterServer(...a) { return this.#record('humidity', a); }
+  createDefaultFanControlClusterServer(...a) { return this.#record('fan', a); }
   addRequiredClusterServers() { return this; }
 
   addChildDeviceType(name, deviceTypes) {

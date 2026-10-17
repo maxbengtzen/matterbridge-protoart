@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 — 2026-10-10
+
+### Added
+- **Fan speed (experimental, off by default).** With `fanControl: true` each thermostat gets a Matter fan control (Auto / Low / Medium / High) that follows the unit's fan speed and sets it from a controller. The ProtoArt speeds map as: `auto` = Auto, `silent` and `low` = Low, `med` = Medium, `high` and `superhigh` = High. Changes made on the unit's remote or in its own web page show up in the controller.
+- Limitations: the unit has no "fan off", so Off from a controller is ignored (the real speed is shown again). `silent` and `superhigh` cannot be selected from a controller. Whether and how a controller presents the fan control depends on the controller; Apple Home may not show it at all.
+
+### Upgrade notes
+- Nothing changes unless you set `fanControl` to `true`. Existing devices, rooms and automations are unaffected.
+
 ## 0.4.2 — 2026-10-04
 
 ### Changed

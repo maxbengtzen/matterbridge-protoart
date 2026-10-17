@@ -38,6 +38,7 @@ Configure via the Matterbridge frontend (`http://<host>:8283`) or by editing the
 | `devices` | array | `[]` | One entry per unit: `host` (required), `name`, `identity` (`ip` or `mac`) |
 | `pollInterval` | number | `15000` | Polling interval per unit in milliseconds (minimum 5000) |
 | `humidity` | string | `off` | Humidity from the wireless thermometer: `off`, `thermostat` (recommended, added to the thermostat itself) or `separate` (separate humidity sensor; Apple Home may then show the unit primarily as a humidity sensor) |
+| `fanControl` | boolean | `false` | **Experimental.** Add a fan control (Auto / Low / Medium / High) to each thermostat |
 | `debug` | boolean | `false` | Verbose debug logging |
 | `unregisterOnShutdown` | boolean | `false` | Unregister devices when Matterbridge stops (development only; loses room assignments in Apple Home) |
 | `hosts`, `deviceNames` | string | (empty) | **Legacy**: comma-separated hosts and names, matched by position. Used only when `devices` is empty |
@@ -73,7 +74,9 @@ Each unit is polled at `/control` (every unit on its own schedule) and exposed a
 
 Changes made in Apple Home (or any Matter controller) are sent to the unit as `/control?cmd=heatpump&...` requests. Setpoint changes are debounced, and the unit is re-read a couple of seconds after every command to confirm the result. Requests to one unit are sent one at a time; a unit that stops answering is polled less often (exponential backoff up to 2 minutes) without affecting the others.
 
-Not exposed (yet): fan speed and louver/vane positions.
+Optional and experimental: fan speed (`fanControl`). The unit's speeds map to Matter's Auto / Low / Medium / High (`silent` shows as Low and `superhigh` as High and cannot be selected from a controller; the unit has no "fan off"). Controllers differ in whether they show a fan control on a thermostat; Apple Home may not.
+
+Not exposed (yet): louver/vane positions.
 
 ## Development
 

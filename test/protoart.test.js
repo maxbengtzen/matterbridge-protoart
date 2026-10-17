@@ -3,6 +3,8 @@ import { describe, it } from 'node:test';
 import {
   backoffDelay,
   batteryAttributes,
+  FanMode,
+  fanModeFromApi,
   humidityValue,
   ipIdentity,
   isLocalContext,
@@ -12,6 +14,7 @@ import {
   normalizeHumidityMode,
   normalizePollInterval,
   normalizeSetpoint,
+  paramsForFanMode,
   paramsForSystemMode,
   parseControl,
   ProtoArtClient,
@@ -199,6 +202,36 @@ describe('humidityValue', () => {
 
   it('clamps readings to 0-100 %', () => {
     assert.equal(parseControl(sample({}, { thermometer: { hact: 140 } })).humidity, 100);
+  });
+});
+
+describe('fan speed mapping', () => {
+  it('maps the unit\'s fan speeds to Matter fan modes', () => {
+    assert.equal(fanModeFromApi('auto'), FanMode.Auto);
+    assert.equal(fanModeFromApi('silent'), FanMode.Low);
+    assert.equal(fanModeFromApi('low'), FanMode.Low);
+    assert.equal(fanModeFromApi('med'), FanMode.Medium);
+    assert.equal(fanModeFromApi('high'), FanMode.High);
+    assert.equal(fanModeFromApi('superhigh'), FanMode.High);
+    assert.equal(fanModeFromApi('turbo'), null);
+    assert.equal(fanModeFromApi(null), null);
+  });
+
+  it('parseControl reports the fan from a real response', () => {
+    const s = parseControl(sample({ fan: 'High' }));
+    assert.equal(s.fan, 'high');
+    assert.equal(s.fanMode, FanMode.High);
+    assert.equal(parseControl(sample({ fan: undefined })).fanMode, null);
+  });
+
+  it('maps Matter fan modes to API parameters; the unit has no fan off', () => {
+    assert.deepEqual(paramsForFanMode(FanMode.Low), { fan: 'low' });
+    assert.deepEqual(paramsForFanMode(FanMode.Medium), { fan: 'med' });
+    assert.deepEqual(paramsForFanMode(FanMode.High), { fan: 'high' });
+    assert.deepEqual(paramsForFanMode(FanMode.On), { fan: 'high' });
+    assert.deepEqual(paramsForFanMode(FanMode.Auto), { fan: 'auto' });
+    assert.deepEqual(paramsForFanMode(FanMode.Smart), { fan: 'auto' });
+    assert.equal(paramsForFanMode(FanMode.Off), null);
   });
 });
 

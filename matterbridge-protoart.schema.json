@@ -47,6 +47,12 @@
       ],
       "default": "off"
     },
+    "fanControl": {
+      "title": "Fan speed (experimental)",
+      "description": "Add a fan control (Auto / Low / Medium / High) to each thermostat. Whether and how controllers show it varies; Apple Home may not show it at all. The unit's silent and superhigh speeds are shown as Low and High and cannot be selected from a controller.",
+      "type": "boolean",
+      "default": false
+    },
     "devices": {
       "title": "Heat pumps",
       "description": "One entry per ProtoArt unit.",

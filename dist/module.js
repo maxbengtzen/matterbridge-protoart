@@ -5,10 +5,17 @@ import {
   MatterbridgeEndpoint,
   thermostat,
 } from 'matterbridge';
-import { BridgedDeviceBasicInformation, PowerSource, RelativeHumidityMeasurement, Thermostat } from 'matterbridge/matter/clusters';
+import {
+  BridgedDeviceBasicInformation,
+  FanControl,
+  PowerSource,
+  RelativeHumidityMeasurement,
+  Thermostat,
+} from 'matterbridge/matter/clusters';
 import {
   backoffDelay,
   batteryAttributes,
+  FanMode,
   humidityValue,
   ipIdentity,
   isLocalContext,
@@ -16,6 +23,7 @@ import {
   normalizeHumidityMode,
   normalizePollInterval,
   normalizeSetpoint,
+  paramsForFanMode,
   paramsForSystemMode,
   parseControl,
   ProtoArtClient,
@@ -150,6 +158,16 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
         .createDefaultRelativeHumidityMeasurementClusterServer(null, 0, 10_000)
         .addRequiredClusterServers();
     }
+    // Fan speed (experimental, see the `fanControl` setting): FanControl cluster on the thermostat endpoint itself.
+    const fanControl = this.config.fanControl === true;
+    if (fanControl) {
+      device.createDefaultFanControlClusterServer(
+        FanMode.Auto,
+        FanControl.FanModeSequence.OffLowMedHighAuto,
+        null,
+        0,
+      );
+    }
     device.addRequiredClusterServers();
 
     const entry = {
@@ -158,6 +176,7 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
       client,
       device,
       humidityDevice,
+      fanControl,
       state: null,
       errors: 0,
       reachable: true,
@@ -206,6 +225,18 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
       this.log,
     );
 
+    if (fanControl) {
+      device.subscribeAttribute(
+        FanControl.id,
+        'fanMode',
+        fromController((value) => {
+          this.log.info(`${name}: fanMode changed to ${value}`);
+          this._handleFanChange(entry, value);
+        }),
+        this.log,
+      );
+    }
+
     device.addCommandHandler('identify', ({ request: { identifyTime } }) => {
       device.log.info(`Command identify called identifyTime ${identifyTime}`);
     });
@@ -246,6 +277,20 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
     if (entry.state?.systemMode === systemMode) return;
     this._sendCommand(entry, params).then((ok) => {
       if (ok && entry.state) entry.state.systemMode = systemMode;
+    });
+  }
+
+  _handleFanChange(entry, fanMode) {
+    const params = paramsForFanMode(fanMode);
+    if (!params) {
+      this.log.warn(`${entry.name}: the unit has no "fan off" (fan mode ${fanMode}); ignoring and showing the real speed`);
+      this._schedulePoll(entry, RESYNC_DELAY);
+      return;
+    }
+    const target = fanMode === FanMode.On ? FanMode.High : fanMode === FanMode.Smart ? FanMode.Auto : fanMode;
+    if (entry.state?.fanMode === target) return;
+    this._sendCommand(entry, params).then((ok) => {
+      if (ok && entry.state) entry.state.fanMode = target;
     });
   }
 
@@ -382,6 +427,13 @@ export class ProtoArtMatterbridgePlatform extends MatterbridgeDynamicPlatform {
 
     for (const [attribute, value] of Object.entries(batteryAttributes(state.battery))) {
       await device.updateAttribute(PowerSource.id, attribute, value, this.log);
+    }
+
+    if (entry.fanControl && state.fanMode !== null) {
+      await device.updateAttribute(FanControl.id, 'fanMode', state.fanMode, this.log);
+      // percentSetting follows fanMode (Matterbridge keeps them in sync); show it as the current speed too.
+      const percent = device.getAttribute(FanControl.id, 'percentSetting', this.log);
+      if (typeof percent === 'number') await device.updateAttribute(FanControl.id, 'percentCurrent', percent, this.log);
     }
 
     if (entry.humidityDevice) {

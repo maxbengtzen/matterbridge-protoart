@@ -8,6 +8,7 @@ const THERMOSTAT = 513;
 const POWER_SOURCE = 47;
 const BRIDGED_BASIC_INFO = 57;
 const HUMIDITY = 1029;
+const FAN = 514;
 
 const control = (heatpump = {}, batt = 71, hact = 57) => ({
   wifi: { mac: 'AA:BB:CC:00:11:22' },
@@ -151,6 +152,56 @@ describe('ProtoArtMatterbridgePlatform', () => {
     assert.equal(device.children.length, 0);
     assert.equal(device.calls.humidity, undefined);
     assert.ok(log.lines.some(([level, msg]) => level === 'warn' && msg.includes('"both"')));
+  });
+
+  it('has no fan control by default', async () => {
+    const device = await start({ devices: [{ host: '10.0.0.1' }] });
+    assert.equal(device.calls.fan, undefined);
+  });
+
+  it('fanControl: adds the FanControl cluster to the thermostat and shows the unit\'s fan speed', async () => {
+    const device = await start({ fanControl: true, devices: [{ host: '10.0.0.1' }] }, { '10.0.0.1': control({ fan: 'med' }) });
+    assert.deepEqual(device.calls.fan, [5, 2, null, 0]); // Auto, Off/Low/Med/High/Auto, no percent yet
+    assert.equal(device.getAttribute(FAN, 'fanMode'), 2);
+  });
+
+  it('fanControl: follows fan changes made on the unit', async () => {
+    const device = await start({ fanControl: true, devices: [{ host: '10.0.0.1' }] }, { '10.0.0.1': control({ fan: 'auto' }) });
+    assert.equal(device.getAttribute(FAN, 'fanMode'), 5);
+    net.units['10.0.0.1'] = control({ fan: 'superhigh' });
+    await tick(15_000);
+    assert.equal(device.getAttribute(FAN, 'fanMode'), 3);
+  });
+
+  it('fanControl: sends the chosen speed to the unit', async () => {
+    const device = await start({ fanControl: true, devices: [{ host: '10.0.0.1' }] }, { '10.0.0.1': control({ fan: 'auto' }) });
+    for (const [mode, expected] of [[1, 'fan=low'], [2, 'fan=med'], [3, 'fan=high'], [5, 'fan=auto']]) {
+      net.requests.length = 0;
+      device.writeFromController(FAN, 'fanMode', mode);
+      await flush();
+      assert.deepEqual(net.commands('10.0.0.1'), [expected]);
+      net.units['10.0.0.1'] = control({ fan: expected.split('=')[1] });
+      await tick(2_500);
+    }
+  });
+
+  it('fanControl: ignores "fan off", which the unit cannot do, and re-reads the real speed', async () => {
+    const device = await start({ fanControl: true, devices: [{ host: '10.0.0.1' }] }, { '10.0.0.1': control({ fan: 'med' }) });
+    net.requests.length = 0;
+    device.writeFromController(FAN, 'fanMode', 0);
+    await tick(1_000);
+    assert.deepEqual(net.commands('10.0.0.1'), []);
+    assert.ok(net.requests.some((r) => r.endsWith('/control')), 'resync poll');
+    assert.equal(device.getAttribute(FAN, 'fanMode'), 2); // back to the real speed
+    assert.ok(log.lines.some(([level, msg]) => level === 'warn' && msg.includes('fan off')));
+  });
+
+  it('fanControl: never echoes its own fan updates, and skips unchanged speeds', async () => {
+    const device = await start({ fanControl: true, devices: [{ host: '10.0.0.1' }] }, { '10.0.0.1': control({ fan: 'med' }) });
+    await device.updateAttribute(FAN, 'fanMode', 3);
+    device.writeFromController(FAN, 'fanMode', 2); // same as the unit's current speed
+    await tick(2_500);
+    assert.deepEqual(net.commands('10.0.0.1'), []);
   });
 
   it('reports an unknown battery when no thermometer is paired', async () => {

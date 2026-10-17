@@ -14,6 +14,9 @@ export const SETPOINT_STEP = 0.5;
 // Matter Thermostat.SystemMode values the plugin supports.
 export const SystemMode = { Off: 0, Auto: 1, Cool: 3, Heat: 4, FanOnly: 7, Dry: 8 };
 
+// Matter FanControl.FanMode values the plugin uses.
+export const FanMode = { Off: 0, Low: 1, Medium: 2, High: 3, On: 4, Auto: 5, Smart: 6 };
+
 const API_MODE_TO_SYSTEM_MODE = {
   auto: SystemMode.Auto,
   cool: SystemMode.Cool,
@@ -141,6 +144,7 @@ export function parseControl(data) {
   const mode = typeof hp.mode === 'string' ? hp.mode.toLowerCase() : 'auto';
   const systemMode = power === 'off' ? SystemMode.Off : (API_MODE_TO_SYSTEM_MODE[mode] ?? SystemMode.Auto);
 
+  const fan = typeof hp.fan === 'string' ? hp.fan.toLowerCase() : null;
   const batt = toNumber(data?.sensor?.thermometer?.batt);
   const humidity = toNumber(data?.sensor?.thermometer?.hact);
   const faultCode = typeof hp.fault_code === 'string' ? hp.fault_code : null;
@@ -152,6 +156,8 @@ export function parseControl(data) {
     temperature: toNumber(hp.actual_temperature),
     setpoint: toNumber(hp.set_temperature),
     operating: typeof hp.oper === 'boolean' ? hp.oper : null,
+    fan,
+    fanMode: fanModeFromApi(fan),
     battery: batt === null ? null : Math.min(Math.max(batt, 0), 100),
     humidity: humidity === null ? null : Math.min(Math.max(humidity, 0), 100),
     fault: faultCode && faultCode.toLowerCase() !== 'no error' ? faultCode : null,
@@ -161,6 +167,27 @@ export function parseControl(data) {
       firmware: data?.fw?.curr ?? null,
     },
   };
+}
+
+/**
+ * ProtoArt fan speed (auto, silent, low, med, high, superhigh) -> Matter FanMode.
+ * Matter's fan has three speeds here, so silent maps to Low and superhigh to High. Unknown -> null.
+ */
+export function fanModeFromApi(fan) {
+  switch (fan) {
+    case 'auto':
+      return FanMode.Auto;
+    case 'silent':
+    case 'low':
+      return FanMode.Low;
+    case 'med':
+      return FanMode.Medium;
+    case 'high':
+    case 'superhigh':
+      return FanMode.High;
+    default:
+      return null;
+  }
 }
 
 /** Matter thermostatRunningState / thermostatRunningMode derived from the `oper` flag. */
@@ -227,6 +254,24 @@ export function paramsForSystemMode(systemMode) {
   if (systemMode === SystemMode.Off) return { power: 'off' };
   const mode = SYSTEM_MODE_TO_API_MODE[systemMode];
   return mode ? { power: 'on', mode } : null;
+}
+
+/** API parameters for a Matter FanMode, or null if the unit cannot do it (the unit has no "fan off"). */
+export function paramsForFanMode(fanMode) {
+  switch (fanMode) {
+    case FanMode.Low:
+      return { fan: 'low' };
+    case FanMode.Medium:
+      return { fan: 'med' };
+    case FanMode.High:
+    case FanMode.On:
+      return { fan: 'high' };
+    case FanMode.Auto:
+    case FanMode.Smart:
+      return { fan: 'auto' };
+    default:
+      return null;
+  }
 }
 
 /**
