@@ -21,10 +21,10 @@ import {
   resolveDevices,
   runningStateFor,
   SystemMode,
-} from '../dist/protoart.js';
+} from '../src/protoart.ts';
 
 // Trimmed /control response from a real ME_CN105_ATA_WIFI (fw 3.4.1); MAC addresses are made up.
-const sample = (overrides = {}, sensor) => ({
+const sample = (overrides: Record<string, unknown> = {}, sensor?: unknown) => ({
   wifi: { mac: 'AA:BB:CC:00:11:22', ip: '192.168.0.151' },
   fw: { curr: '3.4.1', model: 'ME_CN105_ATA_WIFI' },
   sys: { frname: 'Allrum', id: '172371260339696' },
@@ -283,10 +283,10 @@ describe('backoffDelay', () => {
 });
 
 describe('ProtoArtClient', () => {
-  const ok = (body) => ({ ok: true, status: 200, json: async () => body });
+  const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
 
   it('polls /control and sends commands with encoded query strings', async () => {
-    const urls = [];
+    const urls: string[] = [];
     const client = new ProtoArtClient('10.0.0.1', {
       fetchImpl: async (url) => {
         urls.push(url);
@@ -317,7 +317,7 @@ describe('ProtoArtClient', () => {
     let calls = 0;
     const client = new ProtoArtClient('h', {
       fetchImpl: async () => {
-        if (calls++ === 0) return { ok: false, status: 500 };
+        if (calls++ === 0) return { ok: false, status: 500 } as Response;
         return ok({ fine: true });
       },
     });
@@ -329,14 +329,14 @@ describe('ProtoArtClient', () => {
     const client = new ProtoArtClient('h', {
       timeout: 20,
       fetchImpl: (_url, { signal }) =>
-        new Promise((_res, rej) => signal.addEventListener('abort', () => rej(signal.reason))),
+        new Promise((_res, rej) => signal!.addEventListener('abort', () => rej(signal!.reason))),
     });
     await assert.rejects(client.poll(), /timed out after 0\.02s/);
   });
 
   it('rejects invalid JSON', async () => {
     const client = new ProtoArtClient('h', {
-      fetchImpl: async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('x'); } }),
+      fetchImpl: async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('x'); } }) as unknown as Response,
     });
     await assert.rejects(client.poll(), /not valid JSON/);
   });
@@ -344,7 +344,7 @@ describe('ProtoArtClient', () => {
   it('close() aborts the in-flight request and refuses new ones', async () => {
     const client = new ProtoArtClient('h', {
       fetchImpl: (_url, { signal }) =>
-        new Promise((_res, rej) => signal.addEventListener('abort', () => rej(signal.reason))),
+        new Promise((_res, rej) => signal!.addEventListener('abort', () => rej(signal!.reason))),
     });
     const pending = client.poll();
     client.close();

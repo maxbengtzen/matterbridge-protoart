@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it, mock } from 'node:test';
-import './helpers/register-stubs.js';
+import type { AnsiLogger } from 'matterbridge/logger';
+import type { ProtoArtPlatformConfig } from '../src/module.ts';
+import './helpers/register-stubs.ts';
+import type { MatterbridgeEndpoint as StubEndpoint } from './helpers/matterbridge-stub.ts';
 
-const { ProtoArtMatterbridgePlatform } = await import('../dist/module.js');
+// Imported after the stubs are registered, so `matterbridge` resolves to the stub.
+const { ProtoArtMatterbridgePlatform } = await import('../src/module.ts');
 
 const THERMOSTAT = 513;
 const POWER_SOURCE = 47;
@@ -10,58 +14,72 @@ const BRIDGED_BASIC_INFO = 57;
 const HUMIDITY = 1029;
 const FAN = 514;
 
-const control = (heatpump = {}, batt = 71, hact = 57) => ({
+const control = (heatpump: Record<string, unknown> = {}, batt: number | null = 71, hact = 57) => ({
   wifi: { mac: 'AA:BB:CC:00:11:22' },
   sys: { frname: 'Allrum' },
   heatpump: { power: 'on', mode: 'heat', set_temperature: 20, oper: true, fault_code: 'No error', actual_temperature: 22.5, ...heatpump },
   sensor: batt === null ? {} : { thermometer: { batt, hact } },
 });
+type Control = ReturnType<typeof control>;
 
 /** Fake ProtoArt units keyed by host. Commands are recorded; `down` makes a host fail. */
-function fakeNetwork(initial = {}) {
-  const net = { requests: [], down: new Set(), units: {} };
-  net.units = Object.fromEntries(Object.keys(initial).length ? Object.entries(initial) : [['10.0.0.1', control()]]);
-  net.fetch = async (url) => {
-    const u = new URL(url);
-    net.requests.push(`${u.host}${u.pathname}${u.search}`);
-    if (net.down.has(u.host)) throw new Error('ECONNREFUSED');
-    return { ok: true, status: 200, json: async () => structuredClone(net.units[u.host]) };
+function fakeNetwork(initial: Record<string, Control> = {}) {
+  const net = {
+    requests: [] as string[],
+    down: new Set<string>(),
+    units: Object.fromEntries(Object.keys(initial).length ? Object.entries(initial) : [['10.0.0.1', control()]]) as Record<
+      string,
+      Control
+    >,
+    async fetch(url: string | URL | Request): Promise<Response> {
+      const u = new URL(String(url));
+      net.requests.push(`${u.host}${u.pathname}${u.search}`);
+      if (net.down.has(u.host)) throw new Error('ECONNREFUSED');
+      return { ok: true, status: 200, json: async () => structuredClone(net.units[u.host]) } as Response;
+    },
+    commands: (host: string) =>
+      net.requests.filter((r) => r.startsWith(host) && r.includes('cmd=heatpump')).map((r) => r.split('?cmd=heatpump&')[1]),
   };
-  net.commands = (host) => net.requests.filter((r) => r.startsWith(host) && r.includes('cmd=heatpump')).map((r) => r.split('?cmd=heatpump&')[1]);
   return net;
 }
 
 const makeLog = () => {
-  const lines = [];
-  const log = {};
-  for (const level of ['debug', 'info', 'warn', 'error']) log[level] = (...a) => lines.push([level, a.join(' ')]);
-  log.lines = lines;
+  const lines: [string, string][] = [];
+  const log: Record<string, unknown> & { lines: typeof lines } = { lines };
+  for (const level of ['debug', 'info', 'warn', 'error']) log[level] = (...a: unknown[]) => lines.push([level, a.join(' ')]);
   return log;
 };
 
 const flush = async () => {
   for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
 };
-const tick = async (ms) => {
+const tick = async (ms: number) => {
   mock.timers.tick(ms);
   await flush();
 };
 
 describe('ProtoArtMatterbridgePlatform', () => {
-  let net;
-  let realFetch;
-  let platform;
-  let log;
+  let net: ReturnType<typeof fakeNetwork>;
+  let realFetch: typeof fetch;
+  let platform: InstanceType<typeof ProtoArtMatterbridgePlatform> | undefined;
+  let log: ReturnType<typeof makeLog>;
 
-  const start = async (config, units) => {
+  // The devices the stubbed platform has registered.
+  const registered = () => (platform as unknown as { registered: StubEndpoint[] }).registered;
+
+  const start = async (config: Partial<ProtoArtPlatformConfig>, units?: Record<string, Control>) => {
     net = fakeNetwork(units);
     globalThis.fetch = net.fetch;
     log = makeLog();
-    platform = new ProtoArtMatterbridgePlatform({ matterbridgeVersion: '3.10.0' }, log, { pollInterval: 15_000, ...config });
+    platform = new ProtoArtMatterbridgePlatform(
+      { matterbridgeVersion: '3.10.0' } as never,
+      log as unknown as AnsiLogger,
+      { pollInterval: 15_000, ...config } as ProtoArtPlatformConfig,
+    );
     await platform.onStart('test');
     await platform.onConfigure();
     await flush();
-    return platform.registered[0];
+    return registered()[0]!;
   };
 
   beforeEach(() => {
@@ -86,7 +104,7 @@ describe('ProtoArtMatterbridgePlatform', () => {
 
   it('still understands the legacy hosts/deviceNames config', async () => {
     await start({ hosts: '10.0.0.1,10.0.0.2', deviceNames: 'A,B' }, { '10.0.0.1': control(), '10.0.0.2': control() });
-    assert.deepEqual(platform.registered.map((d) => d.calls.basicInfo[0]), ['A', 'B']);
+    assert.deepEqual(registered().map((d) => d.calls.basicInfo[0]), ['A', 'B']);
   });
 
   it('can derive identity from the MAC address', async () => {
@@ -96,7 +114,7 @@ describe('ProtoArtMatterbridgePlatform', () => {
 
   it('polls immediately on configure and maps the state to Matter attributes', async () => {
     const device = await start({ devices: [{ host: '10.0.0.1' }] });
-    const get = (c, a) => device.getAttribute(c, a);
+    const get = (c: number, a: string) => device.getAttribute(c, a) as any;
     assert.equal(get(THERMOSTAT, 'localTemperature'), 2250);
     assert.equal(get(THERMOSTAT, 'occupiedHeatingSetpoint'), 2000);
     assert.equal(get(THERMOSTAT, 'occupiedCoolingSetpoint'), 2000);
@@ -118,7 +136,7 @@ describe('ProtoArtMatterbridgePlatform', () => {
     assert.equal(device.children.length, 1);
     const [sensor] = device.children;
     assert.equal(sensor.id, 'Humidity');
-    assert.equal(sensor.deviceTypes[0].name, 'humiditySensor');
+    assert.equal((sensor.deviceTypes[0] as { name: string }).name, 'humiditySensor');
     assert.deepEqual(sensor.calls.humidity, [null, 0, 10000]);
     assert.equal(sensor.getAttribute(HUMIDITY, 'measuredValue'), 5700);
   });
@@ -175,7 +193,7 @@ describe('ProtoArtMatterbridgePlatform', () => {
 
   it('fanControl: sends the chosen speed to the unit', async () => {
     const device = await start({ fanControl: true, devices: [{ host: '10.0.0.1' }] }, { '10.0.0.1': control({ fan: 'auto' }) });
-    for (const [mode, expected] of [[1, 'fan=low'], [2, 'fan=med'], [3, 'fan=high'], [5, 'fan=auto']]) {
+    for (const [mode, expected] of [[1, 'fan=low'], [2, 'fan=med'], [3, 'fan=high'], [5, 'fan=auto']] as const) {
       net.requests.length = 0;
       device.writeFromController(FAN, 'fanMode', mode);
       await flush();
@@ -269,7 +287,7 @@ describe('ProtoArtMatterbridgePlatform', () => {
 
   it('setpointRaiseLower raises by the requested tenths of a degree and accumulates', async () => {
     const device = await start({ devices: [{ host: '10.0.0.1' }] }, { '10.0.0.1': control({ set_temperature: 21 }) });
-    const handler = device.commandHandlers.get('setpointRaiseLower');
+    const handler = device.commandHandlers.get('setpointRaiseLower')!;
     handler({ request: { mode: 0, amount: 10 } }); // +1.0 °C
     handler({ request: { mode: 0, amount: 5 } }); // +0.5 °C on top of the pending value
     await flush();
@@ -281,7 +299,7 @@ describe('ProtoArtMatterbridgePlatform', () => {
     const device = await start({ devices: [{ host: '10.0.0.1' }] });
     device.writeFromController(THERMOSTAT, 'occupiedHeatingSetpoint', 2400);
     await flush();
-    await platform._poll(platform._entries[0]);
+    await platform!._poll(platform!._entries[0]!);
     assert.equal(device.getAttribute(THERMOSTAT, 'occupiedHeatingSetpoint'), 2400);
   });
 
@@ -298,7 +316,8 @@ describe('ProtoArtMatterbridgePlatform', () => {
     net.down.delete('10.0.0.1');
     await tick(120_000);
     assert.equal(device.getAttribute(BRIDGED_BASIC_INFO, 'reachable'), true);
-    assert.equal(device.events.at(-1).payload.reachableNewValue, true);
+    // The deepEqual assertions above narrowed the type of device.events; widen it again.
+    assert.equal((device.events as StubEndpoint['events']).at(-1)!.payload.reachableNewValue, true);
   });
 
   it('backs off per unit: a dead unit does not slow down a healthy one', async () => {
@@ -330,7 +349,7 @@ describe('ProtoArtMatterbridgePlatform', () => {
 
   it('stops polling and aborts requests on shutdown', async () => {
     await start({ devices: [{ host: '10.0.0.1' }] });
-    await platform.onShutdown('test');
+    await platform!.onShutdown('test');
     net.requests.length = 0;
     await tick(120_000);
     assert.deepEqual(net.requests, []);
@@ -338,9 +357,9 @@ describe('ProtoArtMatterbridgePlatform', () => {
 
   it('does not restart its timer when shutdown happens during a poll', async () => {
     await start({ devices: [{ host: '10.0.0.1' }] });
-    const entry = platform._entries[0];
-    const inFlight = platform._poll(entry);
-    await platform.onShutdown('test');
+    const entry = platform!._entries[0]!;
+    const inFlight = platform!._poll(entry);
+    await platform!.onShutdown('test');
     await inFlight;
     net.requests.length = 0;
     await tick(120_000);
@@ -349,7 +368,7 @@ describe('ProtoArtMatterbridgePlatform', () => {
 
   it('logs an error and registers nothing without configured units', async () => {
     await start({});
-    assert.equal(platform.registered.length, 0);
+    assert.equal(registered().length, 0);
     assert.ok(log.lines.some(([level]) => level === 'error'));
   });
 });

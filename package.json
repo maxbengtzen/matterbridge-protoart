@@ -29,6 +29,15 @@
     "heat-pump",
     "thermostat"
   ],
+  "scripts": {
+    "setup": "npm install --no-save --no-fund --no-audit matterbridge@3.10.13",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc",
+    "test": "node --test \"test/*.test.ts\"",
+    "check": "npm run typecheck && npm test && npm run build",
+    "preversion": "node scripts/changelog.ts check && npm run check",
+    "version": "node scripts/changelog.ts release && npm run build && git add CHANGELOG.md dist"
+  },
   "files": [
     "dist",
     "matterbridge-protoart.schema.json",
@@ -36,8 +45,8 @@
     "CHANGELOG.md",
     "LICENSE"
   ],
-  "scripts": {
-    "test": "node --test \"test/*.test.js\"",
-    "check": "node --check dist/module.js && node --check dist/protoart.js"
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^7.0.2"
   }
 }
